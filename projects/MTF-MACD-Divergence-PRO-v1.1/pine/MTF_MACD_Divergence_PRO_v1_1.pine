@@ -1,0 +1,322 @@
+//@version=6
+indicator("MTF MACD Divergence PRO v1.1", shorttitle = "MTFMDIV11", overlay = false, max_labels_count = 500)
+
+// ============================================================================
+// MTF MACD Divergence PRO v1.1
+// Portfolio-grade Pine Script v6 indicator.
+// Design goals:
+// - Regular + hidden MACD divergence
+// - Multi-timeframe confirmation
+// - Confirmed higher-timeframe data only
+// - No future leak / no HTF repainting
+// - Alert-ready, including optional JSON alerts
+//
+// Non-repainting HTF pattern:
+//   request.security(..., confirmed_expression[1], lookahead = barmerge.lookahead_on)
+//
+// Divergences are pivot-confirmed. A pivot is only known after `rightBars`
+// requested-timeframe bars. This is intentional and prevents premature signals.
+// ============================================================================
+
+// ---------- Input groups ----------
+const string GRP_MACD = "1. MACD"
+const string GRP_DIV  = "2. Divergence Engine"
+const string GRP_MTF  = "3. Multi-Timeframe"
+const string GRP_CONS = "4. MTF Confirmation"
+const string GRP_VIS  = "5. Visuals"
+const string GRP_ALT  = "6. Alerts"
+
+// ---------- MACD ----------
+int fastLen   = input.int(12, "Fast EMA", minval = 1, group = GRP_MACD)
+int slowLen   = input.int(26, "Slow EMA", minval = 2, group = GRP_MACD)
+int signalLen = input.int(9, "Signal EMA", minval = 1, group = GRP_MACD)
+
+if fastLen >= slowLen
+    runtime.error("Fast EMA must be smaller than Slow EMA.")
+
+// ---------- Divergence engine ----------
+int leftBars  = input.int(5, "Pivot left bars", minval = 1, maxval = 50, group = GRP_DIV)
+int rightBars = input.int(5, "Pivot right bars", minval = 1, maxval = 50, group = GRP_DIV)
+int minSpan   = input.int(5, "Minimum bars between pivots", minval = 1, maxval = 500, group = GRP_DIV)
+int maxSpan   = input.int(80, "Maximum bars between pivots", minval = 2, maxval = 1000, group = GRP_DIV)
+bool useRegular = input.bool(true, "Regular divergence", group = GRP_DIV)
+bool useHidden  = input.bool(true, "Hidden divergence", group = GRP_DIV)
+
+if minSpan >= maxSpan
+    runtime.error("Minimum pivot span must be smaller than maximum pivot span.")
+
+// ---------- Multi-timeframe ----------
+// v1.1 default: AUTO. TF1 follows the chart; TF2/TF3 are selected from a
+// standard same-or-higher timeframe ladder. This prevents a 1H input from
+// breaking the script when the user switches the chart to 4H, 1D, etc.
+string tfMode = input.string("Auto", "Timeframe mode", options = ["Auto", "Manual"], group = GRP_MTF)
+
+bool useTf1 = input.bool(true, "Enable TF1", inline = "tf1", group = GRP_MTF)
+string manualTf1 = input.timeframe("60", "Manual TF1", inline = "tf1", group = GRP_MTF)
+bool useTf2 = input.bool(true, "Enable TF2", inline = "tf2", group = GRP_MTF)
+string manualTf2 = input.timeframe("240", "Manual TF2", inline = "tf2", group = GRP_MTF)
+bool useTf3 = input.bool(true, "Enable TF3", inline = "tf3", group = GRP_MTF)
+string manualTf3 = input.timeframe("1D", "Manual TF3", inline = "tf3", group = GRP_MTF)
+
+int chartTfSec = timeframe.in_seconds()
+
+// Return the first standard portfolio timeframe STRICTLY above the chart TF.
+// For extreme chart TFs where no larger preset exists, keep the chart TF.
+f_autoTf2(int _chartSec) =>
+    _chartSec < timeframe.in_seconds("60")  ? "60"  :
+     _chartSec < timeframe.in_seconds("240") ? "240" :
+     _chartSec < timeframe.in_seconds("1D")  ? "1D"  :
+     _chartSec < timeframe.in_seconds("1W")  ? "1W"  :
+     _chartSec < timeframe.in_seconds("1M")  ? "1M"  :
+     _chartSec < timeframe.in_seconds("3M")  ? "3M"  :
+     _chartSec < timeframe.in_seconds("6M")  ? "6M"  :
+     _chartSec < timeframe.in_seconds("12M") ? "12M" :
+     timeframe.period
+
+// Return the second standard portfolio timeframe above the chart TF.
+f_autoTf3(int _chartSec) =>
+    _chartSec < timeframe.in_seconds("60")  ? "240" :
+     _chartSec < timeframe.in_seconds("240") ? "1D"  :
+     _chartSec < timeframe.in_seconds("1D")  ? "1W"  :
+     _chartSec < timeframe.in_seconds("1W")  ? "1M"  :
+     _chartSec < timeframe.in_seconds("1M")  ? "3M"  :
+     _chartSec < timeframe.in_seconds("3M")  ? "6M"  :
+     _chartSec < timeframe.in_seconds("6M")  ? "12M" :
+     timeframe.period
+
+bool autoMode = tfMode == "Auto"
+
+string tf1 = autoMode ? timeframe.period : manualTf1
+string tf2 = autoMode ? f_autoTf2(chartTfSec) : manualTf2
+string tf3 = autoMode ? f_autoTf3(chartTfSec) : manualTf3
+
+// Manual mode remains fail-closed. Lower-timeframe aggregation has different
+// semantics and should use request.security_lower_tf(), so we do not silently
+// pretend that a lower-TF manual request is equivalent to confirmed HTF data.
+if not autoMode and useTf1 and timeframe.in_seconds(tf1) < chartTfSec
+    runtime.error("Manual TF1 must be equal to or higher than the chart timeframe.")
+if not autoMode and useTf2 and timeframe.in_seconds(tf2) < chartTfSec
+    runtime.error("Manual TF2 must be equal to or higher than the chart timeframe.")
+if not autoMode and useTf3 and timeframe.in_seconds(tf3) < chartTfSec
+    runtime.error("Manual TF3 must be equal to or higher than the chart timeframe.")
+
+int enabledTfCount = (useTf1 ? 1 : 0) + (useTf2 ? 1 : 0) + (useTf3 ? 1 : 0)
+if enabledTfCount == 0
+    runtime.error("Enable at least one timeframe.")
+
+// ---------- MTF confirmation ----------
+int minTfConfirmations = input.int(2, "Minimum confirming timeframes", minval = 1, maxval = 3, group = GRP_CONS)
+int confirmationWindow = input.int(6, "Confirmation window (chart bars)", minval = 1, maxval = 100, group = GRP_CONS)
+
+// ---------- Visuals ----------
+string displayTf = input.string("TF1", "MACD pane source", options = ["TF1", "TF2", "TF3"], group = GRP_VIS)
+bool showIndividualSignals = input.bool(false, "Show individual TF signals", group = GRP_VIS)
+bool showConsensusSignals  = input.bool(true, "Show MTF consensus", group = GRP_VIS)
+bool showDashboard         = input.bool(true, "Show dashboard", group = GRP_VIS)
+
+// ---------- Alerts ----------
+bool jsonAlerts = input.bool(true, "Enable JSON consensus alerts", group = GRP_ALT)
+
+// ============================================================================
+// Core divergence engine
+// ============================================================================
+f_divergenceCore(int _fast, int _slow, int _signal, int _left, int _right, int _minSpan, int _maxSpan) =>
+    [macdLine, signalLine, histLine] = ta.macd(close, _fast, _slow, _signal)
+
+    float oscPivotLow  = ta.pivotlow(macdLine, _left, _right)
+    float oscPivotHigh = ta.pivothigh(macdLine, _left, _right)
+
+    bool hasLowPivot  = not na(oscPivotLow)
+    bool hasHighPivot = not na(oscPivotHigh)
+
+    float currentLowPrice  = low[_right]
+    float currentHighPrice = high[_right]
+
+    float prevLowOsc    = ta.valuewhen(hasLowPivot, oscPivotLow, 1)
+    float prevLowPrice  = ta.valuewhen(hasLowPivot, low[_right], 1)
+    float prevLowBar    = ta.valuewhen(hasLowPivot, float(bar_index - _right), 1)
+
+    float prevHighOsc   = ta.valuewhen(hasHighPivot, oscPivotHigh, 1)
+    float prevHighPrice = ta.valuewhen(hasHighPivot, high[_right], 1)
+    float prevHighBar   = ta.valuewhen(hasHighPivot, float(bar_index - _right), 1)
+
+    float currentLowBar  = float(bar_index - _right)
+    float currentHighBar = float(bar_index - _right)
+
+    float lowDistance  = currentLowBar - prevLowBar
+    float highDistance = currentHighBar - prevHighBar
+
+    bool lowSpacingOk  = hasLowPivot and not na(prevLowBar) and lowDistance >= _minSpan and lowDistance <= _maxSpan
+    bool highSpacingOk = hasHighPivot and not na(prevHighBar) and highDistance >= _minSpan and highDistance <= _maxSpan
+
+    bool regularBull = lowSpacingOk and currentLowPrice < prevLowPrice and oscPivotLow > prevLowOsc
+    bool regularBear = highSpacingOk and currentHighPrice > prevHighPrice and oscPivotHigh < prevHighOsc
+    bool hiddenBull = lowSpacingOk and currentLowPrice > prevLowPrice and oscPivotLow < prevLowOsc
+    bool hiddenBear = highSpacingOk and currentHighPrice < prevHighPrice and oscPivotHigh > prevHighOsc
+
+    [regularBull, regularBear, hiddenBull, hiddenBear, macdLine, signalLine, histLine]
+
+// Return only values from the PREVIOUS fully closed requested-timeframe bar.
+// Combined with lookahead_on in request.security(), this avoids HTF repainting
+// and historical future leak while preserving deterministic timing.
+f_confirmedPack(int _fast, int _slow, int _signal, int _left, int _right, int _minSpan, int _maxSpan) =>
+    [rb, rbe, hb, hbe, m, s, h] = f_divergenceCore(_fast, _slow, _signal, _left, _right, _minSpan, _maxSpan)
+    [rb[1], rbe[1], hb[1], hbe[1], m[1], s[1], h[1], time[1]]
+
+// ============================================================================
+// Confirmed MTF requests
+// ============================================================================
+[tf1RegBullRaw, tf1RegBearRaw, tf1HidBullRaw, tf1HidBearRaw, tf1Macd, tf1Signal, tf1Hist, tf1Time] = request.security(
+        syminfo.tickerid,
+        tf1,
+        f_confirmedPack(fastLen, slowLen, signalLen, leftBars, rightBars, minSpan, maxSpan),
+        gaps = barmerge.gaps_off,
+        lookahead = barmerge.lookahead_on)
+
+[tf2RegBullRaw, tf2RegBearRaw, tf2HidBullRaw, tf2HidBearRaw, tf2Macd, tf2Signal, tf2Hist, tf2Time] = request.security(
+        syminfo.tickerid,
+        tf2,
+        f_confirmedPack(fastLen, slowLen, signalLen, leftBars, rightBars, minSpan, maxSpan),
+        gaps = barmerge.gaps_off,
+        lookahead = barmerge.lookahead_on)
+
+[tf3RegBullRaw, tf3RegBearRaw, tf3HidBullRaw, tf3HidBearRaw, tf3Macd, tf3Signal, tf3Hist, tf3Time] = request.security(
+        syminfo.tickerid,
+        tf3,
+        f_confirmedPack(fastLen, slowLen, signalLen, leftBars, rightBars, minSpan, maxSpan),
+        gaps = barmerge.gaps_off,
+        lookahead = barmerge.lookahead_on)
+
+bool tf1RegBull = useTf1 and useRegular and tf1RegBullRaw and not tf1RegBullRaw[1]
+bool tf1RegBear = useTf1 and useRegular and tf1RegBearRaw and not tf1RegBearRaw[1]
+bool tf1HidBull = useTf1 and useHidden  and tf1HidBullRaw and not tf1HidBullRaw[1]
+bool tf1HidBear = useTf1 and useHidden  and tf1HidBearRaw and not tf1HidBearRaw[1]
+
+bool tf2RegBull = useTf2 and useRegular and tf2RegBullRaw and not tf2RegBullRaw[1]
+bool tf2RegBear = useTf2 and useRegular and tf2RegBearRaw and not tf2RegBearRaw[1]
+bool tf2HidBull = useTf2 and useHidden  and tf2HidBullRaw and not tf2HidBullRaw[1]
+bool tf2HidBear = useTf2 and useHidden  and tf2HidBearRaw and not tf2HidBearRaw[1]
+
+bool tf3RegBull = useTf3 and useRegular and tf3RegBullRaw and not tf3RegBullRaw[1]
+bool tf3RegBear = useTf3 and useRegular and tf3RegBearRaw and not tf3RegBearRaw[1]
+bool tf3HidBull = useTf3 and useHidden  and tf3HidBullRaw and not tf3HidBullRaw[1]
+bool tf3HidBear = useTf3 and useHidden  and tf3HidBearRaw and not tf3HidBearRaw[1]
+
+bool tf1Bull = tf1RegBull or tf1HidBull
+bool tf1Bear = tf1RegBear or tf1HidBear
+bool tf2Bull = tf2RegBull or tf2HidBull
+bool tf2Bear = tf2RegBear or tf2HidBear
+bool tf3Bull = tf3RegBull or tf3HidBull
+bool tf3Bear = tf3RegBear or tf3HidBear
+
+f_recent(bool event, int windowBars) =>
+    int since = ta.barssince(event)
+    not na(since) and since <= windowBars
+
+bool tf1BullRecent = useTf1 and f_recent(tf1Bull, confirmationWindow)
+bool tf1BearRecent = useTf1 and f_recent(tf1Bear, confirmationWindow)
+bool tf2BullRecent = useTf2 and f_recent(tf2Bull, confirmationWindow)
+bool tf2BearRecent = useTf2 and f_recent(tf2Bear, confirmationWindow)
+bool tf3BullRecent = useTf3 and f_recent(tf3Bull, confirmationWindow)
+bool tf3BearRecent = useTf3 and f_recent(tf3Bear, confirmationWindow)
+
+int bullConfirmations = (tf1BullRecent ? 1 : 0) + (tf2BullRecent ? 1 : 0) + (tf3BullRecent ? 1 : 0)
+int bearConfirmations = (tf1BearRecent ? 1 : 0) + (tf2BearRecent ? 1 : 0) + (tf3BearRecent ? 1 : 0)
+int requiredConfirmations = math.min(minTfConfirmations, enabledTfCount)
+
+bool bullConsensusState = bullConfirmations >= requiredConfirmations
+bool bearConsensusState = bearConfirmations >= requiredConfirmations
+bool bullConsensus = bullConsensusState and not bullConsensusState[1]
+bool bearConsensus = bearConsensusState and not bearConsensusState[1]
+
+float displayMacd = displayTf == "TF1" ? tf1Macd : displayTf == "TF2" ? tf2Macd : tf3Macd
+float displaySignal = displayTf == "TF1" ? tf1Signal : displayTf == "TF2" ? tf2Signal : tf3Signal
+float displayHist = displayTf == "TF1" ? tf1Hist : displayTf == "TF2" ? tf2Hist : tf3Hist
+
+plot(displayHist, "Confirmed MTF MACD Histogram", style = plot.style_histogram, color = displayHist >= 0 ? color.new(color.teal, 25) : color.new(color.red, 25))
+plot(displayMacd, "Confirmed MTF MACD", color = color.aqua, linewidth = 2)
+plot(displaySignal, "Confirmed MTF Signal", color = color.orange, linewidth = 1)
+hline(0, "Zero line", color = color.new(color.gray, 70))
+
+plotshape(showIndividualSignals and tf1Bull, title = "TF1 bullish divergence", style = shape.triangleup, location = location.bottom, color = color.lime, text = "B1", size = size.tiny)
+plotshape(showIndividualSignals and tf1Bear, title = "TF1 bearish divergence", style = shape.triangledown, location = location.top, color = color.red, text = "S1", size = size.tiny)
+plotshape(showIndividualSignals and tf2Bull, title = "TF2 bullish divergence", style = shape.triangleup, location = location.bottom, color = color.new(color.lime, 20), text = "B2", size = size.tiny)
+plotshape(showIndividualSignals and tf2Bear, title = "TF2 bearish divergence", style = shape.triangledown, location = location.top, color = color.new(color.red, 20), text = "S2", size = size.tiny)
+plotshape(showIndividualSignals and tf3Bull, title = "TF3 bullish divergence", style = shape.triangleup, location = location.bottom, color = color.new(color.lime, 40), text = "B3", size = size.tiny)
+plotshape(showIndividualSignals and tf3Bear, title = "TF3 bearish divergence", style = shape.triangledown, location = location.top, color = color.new(color.red, 40), text = "S3", size = size.tiny)
+
+plotshape(showConsensusSignals and bullConsensus, title = "MTF bullish consensus", style = shape.labelup, location = location.bottom, color = color.green, text = "MTF BULL", textcolor = color.white, size = size.small)
+plotshape(showConsensusSignals and bearConsensus, title = "MTF bearish consensus", style = shape.labeldown, location = location.top, color = color.maroon, text = "MTF BEAR", textcolor = color.white, size = size.small)
+
+f_stateText(bool bullRecent, bool bearRecent) =>
+    bullRecent and bearRecent ? "MIXED" :
+     bullRecent ? "BULL" :
+     bearRecent ? "BEAR" :
+     "—"
+
+f_stateColor(bool bullRecent, bool bearRecent) =>
+    bullRecent and bearRecent ? color.orange :
+     bullRecent ? color.green :
+     bearRecent ? color.red :
+     color.new(color.gray, 75)
+
+var table dashboard = table.new(position.top_right, 4, 6, frame_width = 1, border_width = 1)
+
+if barstate.islast and showDashboard
+    table.cell(dashboard, 0, 0, autoMode ? "TF AUTO" : "TF MAN", text_color = color.white, bgcolor = color.new(color.gray, 60))
+    table.cell(dashboard, 1, 0, "State", text_color = color.white, bgcolor = color.new(color.gray, 60))
+    table.cell(dashboard, 2, 0, "MACD", text_color = color.white, bgcolor = color.new(color.gray, 60))
+    table.cell(dashboard, 3, 0, "Enabled", text_color = color.white, bgcolor = color.new(color.gray, 60))
+
+    table.cell(dashboard, 0, 1, tf1)
+    table.cell(dashboard, 1, 1, f_stateText(tf1BullRecent, tf1BearRecent), bgcolor = f_stateColor(tf1BullRecent, tf1BearRecent), text_color = color.white)
+    table.cell(dashboard, 2, 1, str.tostring(tf1Macd, format.mintick))
+    table.cell(dashboard, 3, 1, useTf1 ? "YES" : "NO")
+
+    table.cell(dashboard, 0, 2, tf2)
+    table.cell(dashboard, 1, 2, f_stateText(tf2BullRecent, tf2BearRecent), bgcolor = f_stateColor(tf2BullRecent, tf2BearRecent), text_color = color.white)
+    table.cell(dashboard, 2, 2, str.tostring(tf2Macd, format.mintick))
+    table.cell(dashboard, 3, 2, useTf2 ? "YES" : "NO")
+
+    table.cell(dashboard, 0, 3, tf3)
+    table.cell(dashboard, 1, 3, f_stateText(tf3BullRecent, tf3BearRecent), bgcolor = f_stateColor(tf3BullRecent, tf3BearRecent), text_color = color.white)
+    table.cell(dashboard, 2, 3, str.tostring(tf3Macd, format.mintick))
+    table.cell(dashboard, 3, 3, useTf3 ? "YES" : "NO")
+
+    table.cell(dashboard, 0, 4, "MTF")
+    table.cell(dashboard, 1, 4, bullConsensusState ? "BULL" : bearConsensusState ? "BEAR" : "—",
+        bgcolor = bullConsensusState ? color.green : bearConsensusState ? color.red : color.new(color.gray, 75),
+        text_color = color.white)
+    table.cell(dashboard, 2, 4, str.tostring(bullConfirmations) + "B / " + str.tostring(bearConfirmations) + "S")
+    table.cell(dashboard, 3, 4, str.tostring(requiredConfirmations) + " req.")
+
+    table.cell(dashboard, 0, 5, "Chart")
+    table.cell(dashboard, 1, 5, timeframe.period)
+    table.cell(dashboard, 2, 5, autoMode ? "AUTO" : "MANUAL")
+    table.cell(dashboard, 3, 5, "v1.1")
+
+bool anyBull = tf1Bull or tf2Bull or tf3Bull
+bool anyBear = tf1Bear or tf2Bear or tf3Bear
+
+alertcondition(anyBull, "Any bullish MACD divergence", "Confirmed bullish MACD divergence on one enabled timeframe for {{exchange}}:{{ticker}}.")
+alertcondition(anyBear, "Any bearish MACD divergence", "Confirmed bearish MACD divergence on one enabled timeframe for {{exchange}}:{{ticker}}.")
+alertcondition(bullConsensus, "MTF bullish MACD consensus", "Confirmed multi-timeframe bullish MACD divergence consensus for {{exchange}}:{{ticker}}.")
+alertcondition(bearConsensus, "MTF bearish MACD consensus", "Confirmed multi-timeframe bearish MACD divergence consensus for {{exchange}}:{{ticker}}.")
+
+if jsonAlerts and barstate.isconfirmed and bullConsensus
+    alert(
+        '{"event":"mtf_macd_divergence","version":"1.1","direction":"bullish","ticker":"' +
+        syminfo.tickerid + '","chart_tf":"' + timeframe.period + '","tf1":"' + tf1 +
+        '","tf2":"' + tf2 + '","tf3":"' + tf3 + '","price":"' +
+        str.tostring(close, format.mintick) + '","confirmations":' +
+        str.tostring(bullConfirmations) + '}',
+        alert.freq_once_per_bar_close)
+
+if jsonAlerts and barstate.isconfirmed and bearConsensus
+    alert(
+        '{"event":"mtf_macd_divergence","version":"1.1","direction":"bearish","ticker":"' +
+        syminfo.tickerid + '","chart_tf":"' + timeframe.period + '","tf1":"' + tf1 +
+        '","tf2":"' + tf2 + '","tf3":"' + tf3 + '","price":"' +
+        str.tostring(close, format.mintick) + '","confirmations":' +
+        str.tostring(bearConfirmations) + '}',
+        alert.freq_once_per_bar_close)
