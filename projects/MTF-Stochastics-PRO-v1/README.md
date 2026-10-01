@@ -62,6 +62,24 @@ lookahead = barmerge.lookahead_on
 
 This intentionally favors stable confirmed data over premature signals.
 
+## Runtime validation
+
+**TradingView runtime: PASSED — 2026-10-01.**
+
+Observed setup:
+- BTCUSDT perpetual (Bitget)
+- 1H chart
+- Auto timeframe mode
+
+Observed output:
+- %K / %D rendered correctly
+- overbought / oversold guides rendered
+- MTF BULL / MTF BEAR consensus labels rendered
+- dashboard rendered timeframe states and oscillator values
+- no visible runtime error
+
+See [`docs/RUNTIME_VALIDATION.md`](docs/RUNTIME_VALIDATION.md).
+
 ## Source
 
 - `pine/MTF_Stochastics_PRO_v1.pine`
@@ -69,11 +87,14 @@ This intentionally favors stable confirmed data over premature signals.
 - `tests/`
 - `docs/NON_REPAINTING.md`
 - `docs/PORTFOLIO_CASE_STUDY.md`
+- `docs/RUNTIME_VALIDATION.md`
 
 ## Status
 
 **Source package + automated validation: complete.**
 
-**TradingView runtime verification: pending manual platform pass.**
+**TradingView runtime verification: passed.**
+
+Formal realtime observation across an HTF close and alert-delivery verification remain separate checks.
 
 This project is an engineering demonstration, not a profitability claim or financial advice.
