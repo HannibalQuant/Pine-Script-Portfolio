@@ -1,27 +1,17 @@
 # Pine Script Portfolio
 
-[![portfolio-tests](https://github.com/HannibalQuant/Pine-Script-Portfolio/actions/workflows/portfolio-tests.yml/badge.svg)](https://github.com/HannibalQuant/Pine-Script-Portfolio/actions/workflows/portfolio-tests.yml)
+Professional **Pine Script v6** portfolio focused on multi-timeframe logic, confirmed-bar execution, non-repainting design, alerts, and TradingView runtime validation.
 
-Professional **Pine Script v6** indicators and trading tools focused on multi-timeframe logic, confirmed-bar execution, non-repainting design, alerts, and Python validation.
+> **Closed-source portfolio:** the complete Pine Script source code and private validation implementations are intentionally not published in this repository. They are available for controlled review with serious clients when appropriate.
 
 ## Featured projects
 
 ### 1. MTF MACD Divergence PRO v1.1
 
-Adaptive multi-timeframe MACD divergence indicator featuring:
+Adaptive multi-timeframe MACD divergence indicator featuring regular and hidden bullish/bearish divergence, Auto / Manual timeframe modes, confirmed higher-timeframe data, MTF consensus, dashboard, alert conditions, and JSON alerts.
 
-- regular + hidden bullish/bearish divergence
-- Auto / Manual timeframe modes
-- confirmed higher-timeframe data
-- pivot-confirmed signals
-- MTF consensus window and dashboard
-- TradingView alert conditions
-- optional JSON alert payloads
-- Python reference logic
-- automated GitHub Actions tests
-
-**TradingView runtime:** passed on multiple chart intervals.  
-**CI:** active and passing.
+**TradingView runtime:** PASSED on multiple chart intervals.  
+**Public materials:** architecture, case study, runtime notes, changelog, and a limited non-proprietary code excerpt.
 
 [**Open MTF MACD Divergence PRO v1.1 →**](projects/MTF-MACD-Divergence-PRO-v1.1/README.md)
 
@@ -29,49 +19,39 @@ Adaptive multi-timeframe MACD divergence indicator featuring:
 
 ### 2. MTF Stochastics PRO v1
 
-Adaptive multi-timeframe Stochastic oscillator featuring:
+Adaptive multi-timeframe Stochastic oscillator featuring %K / %D analysis, overbought / oversold reversal logic, midline momentum events, Auto / Manual timeframes, MTF consensus, dashboard, alert conditions, and JSON alerts.
 
-- %K / %D analysis
-- overbought / oversold reversal crosses
-- midline momentum events
-- optional %K/%D alignment filter
-- Auto / Manual timeframe modes
-- selectable MTF consensus family: Reversal / Momentum / Either
-- confirmation window and dashboard
-- TradingView alert conditions
-- optional JSON alert payloads
-- Python reference logic
-- automated regression tests
-
-**Source package:** complete.  
-**Automated validation:** complete.  
-**TradingView runtime:** passed on BTCUSDT 1H in Auto MTF mode.
+**TradingView runtime:** PASSED on BTCUSDT 1H.  
+**Public materials:** architecture, case study, runtime notes, changelog, and a limited non-proprietary code excerpt.
 
 [**Open MTF Stochastics PRO v1 →**](projects/MTF-Stochastics-PRO-v1/README.md)
 
-## Engineering focus
+## What this repository proves
 
-- Pine Script v6
+- Pine Script v6 project design
 - `request.security()` / multi-timeframe architecture
 - confirmed-bar and no-lookahead semantics
 - non-repainting HTF request patterns
-- divergence and oscillator logic
+- divergence and oscillator engineering
 - alerts and webhook-ready JSON payloads
 - defensive input validation
-- Python reference implementations
-- automated regression tests
-- TradingView runtime verification
+- documented runtime validation
+- iterative debugging from observed TradingView behavior
 
-## Portfolio roadmap
+## Source-code policy
 
-| Project | Status |
-|---|---|
-| MTF MACD Divergence PRO v1.1 | **Available / runtime passed** |
-| MTF Stochastics PRO v1 | **Available / runtime passed** |
-| Strategy / backtest portfolio example | Planned |
+The public repository is a **portfolio showcase**, not a source-code distribution repository.
 
-## About this repository
+The full `.pine` implementations, Python mirrors, and private regression suites are kept private to protect the intellectual property while still showing the engineering approach and verified runtime behavior.
 
-The goal is to show not only working Pine code, but the engineering around it: explicit execution semantics, validation boundaries, regression testing, runtime evidence, and clear documentation.
+See [SOURCE_POLICY.md](SOURCE_POLICY.md).
+
+## TradingView demos
+
+Protected TradingView publications will be linked here after publication. They will allow clients to evaluate the indicators without exposing the source code.
+
+## Contact / client review
+
+For a serious project discussion, full source can be reviewed in a controlled setting or through temporary private access when appropriate.
 
 Portfolio projects are engineering demonstrations. They do not make profitability claims and are not financial advice.

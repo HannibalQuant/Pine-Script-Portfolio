@@ -1,34 +1,32 @@
-name: portfolio-tests
+name: public-portfolio-safety
 
 on:
   push:
   pull_request:
 
 jobs:
-  mtf-macd-divergence-pro:
+  safety:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: projects/MTF-MACD-Divergence-PRO-v1.1
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
-      - run: pytest -q
-
-  mtf-stochastics-pro:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: projects/MTF-Stochastics-PRO-v1
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
-      - run: pytest -q
+      - name: Verify no private source is public
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -type f -name '*.pine' | grep -q .; then
+            echo 'ERROR: compile-ready Pine source found in public portfolio.'
+            exit 1
+          fi
+          if find . -type d -name 'python_ref' | grep -q .; then
+            echo 'ERROR: private Python reference directory found in public portfolio.'
+            exit 1
+          fi
+          if find . -type d -name 'tests' | grep -q .; then
+            echo 'ERROR: private regression test directory found in public portfolio.'
+            exit 1
+          fi
+          test -f README.md
+          test -f SOURCE_POLICY.md
+          test -f projects/MTF-MACD-Divergence-PRO-v1.1/README.md
+          test -f projects/MTF-Stochastics-PRO-v1/README.md
+          echo 'Public portfolio safety checks passed.'

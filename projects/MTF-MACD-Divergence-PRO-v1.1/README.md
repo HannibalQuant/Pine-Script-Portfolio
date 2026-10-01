@@ -4,22 +4,20 @@ Portfolio-grade **Pine Script v6** indicator for adaptive multi-timeframe MACD d
 
 ## What it demonstrates
 
-- Pine Script v6
-- `request.security()` and multi-timeframe architecture
-- regular + hidden bullish/bearish MACD divergence
-- confirmed pivot detection
-- adaptive Auto timeframe mode
-- confirmed higher-timeframe values using an explicit `[1]` offset
-- `barmerge.lookahead_on` used only with already-confirmed requested-timeframe data
-- MTF consensus window and dashboard
-- alert conditions + optional JSON alerts
-- defensive input validation
-- Python reference implementation
-- automated regression tests
+- regular + hidden bullish / bearish MACD divergence
+- oscillator-pivot swing pairing
+- adaptive Auto / Manual timeframe modes
+- confirmed higher-timeframe values
+- MTF confirmation window and dashboard
+- alert conditions and JSON alerts
+- defensive validation
+- explicit no-lookahead / non-repainting design
 
 ## Adaptive timeframe mode
 
-Auto mode is the default. TF1 follows the active chart and TF2/TF3 move upward through a standard timeframe ladder.
+Auto mode follows the active chart timeframe and resolves TF2 / TF3 upward through a standard timeframe ladder.
+
+Examples:
 
 | Chart | TF1 | TF2 | TF3 |
 |---|---|---|---|
@@ -28,39 +26,31 @@ Auto mode is the default. TF1 follows the active chart and TF2/TF3 move upward t
 | 2H | 2H | 4H | 1D |
 | 4H | 4H | 1D | 1W |
 | 1D | 1D | 1W | 1M |
-| 1W | 1W | 1M | 3M |
 
-Manual mode remains available and deliberately fails closed if a requested timeframe is below the chart timeframe.
-
-## Divergence rules
-
-- Regular bullish: lower price low + higher MACD low
-- Regular bearish: higher price high + lower MACD high
-- Hidden bullish: higher price low + lower MACD low
-- Hidden bearish: lower price high + higher MACD high
-
-The oscillator pivot is the pairing anchor. Price is sampled on the same confirmed pivot bar.
+Manual mode remains available and deliberately rejects lower-than-chart requests.
 
 ## Runtime status
 
-**TradingView runtime: PASSED — 2026-10-01.**
+**TradingView runtime: PASSED.**
 
-The v1.1 build was tested while switching across multiple chart intervals. The adaptive MTF resolver stayed operational and removed the v1.0 lower-timeframe guard failure in Auto mode.
+The adaptive v1.1 build was tested across multiple chart intervals and remained operational after the v1.0 static-timeframe limitation was corrected.
 
-Automated tests cover divergence classification, pivot confirmation delay, timeframe resolution, Pine source contracts, and parser regressions.
+## Validation summary
 
-## Source
+Private automated validation covers divergence classification, pivot confirmation delay, timeframe resolution, Pine source contracts, and parser regressions.
 
-- [`pine/MTF_MACD_Divergence_PRO_v1_1.pine`](pine/MTF_MACD_Divergence_PRO_v1_1.pine)
-- [`python_ref/`](python_ref/)
-- [`tests/`](tests/)
+## Public code excerpt
+
+A limited architecture excerpt is available in [`PUBLIC_CODE_EXCERPT.md`](PUBLIC_CODE_EXCERPT.md). It is intentionally incomplete and does not contain the proprietary signal engine.
+
+## Documentation
+
 - [`docs/NON_REPAINTING.md`](docs/NON_REPAINTING.md)
 - [`docs/PORTFOLIO_CASE_STUDY.md`](docs/PORTFOLIO_CASE_STUDY.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
-## Validation boundary
+## Source availability
 
-Runtime compatibility has been verified. A formal realtime observation across an HTF close and alert-delivery verification remain separate checks; this repository does not overstate them as completed.
-
-TradingView screenshots are being kept as portfolio evidence and will be added to the public repository as the visual evidence pack is finalized.
+The complete Pine Script implementation and private validation code are **not public**. They are available for controlled review with serious clients when appropriate.
 
 This project is an engineering demonstration, not a profitability claim or financial advice.
