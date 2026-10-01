@@ -4,9 +4,9 @@
 
 Professional **Pine Script v6** indicators and trading tools focused on multi-timeframe logic, confirmed-bar execution, non-repainting design, alerts, and Python validation.
 
-## Featured project
+## Featured projects
 
-### MTF MACD Divergence PRO v1.1
+### 1. MTF MACD Divergence PRO v1.1
 
 Adaptive multi-timeframe MACD divergence indicator featuring:
 
@@ -25,13 +25,37 @@ Adaptive multi-timeframe MACD divergence indicator featuring:
 
 [**Open MTF MACD Divergence PRO v1.1 →**](projects/MTF-MACD-Divergence-PRO-v1.1/README.md)
 
+---
+
+### 2. MTF Stochastics PRO v1
+
+Adaptive multi-timeframe Stochastic oscillator featuring:
+
+- %K / %D analysis
+- overbought / oversold reversal crosses
+- midline momentum events
+- optional %K/%D alignment filter
+- Auto / Manual timeframe modes
+- selectable MTF consensus family: Reversal / Momentum / Either
+- confirmation window and dashboard
+- TradingView alert conditions
+- optional JSON alert payloads
+- Python reference logic
+- automated regression tests
+
+**Source package:** complete.  
+**Automated validation:** complete.  
+**TradingView runtime:** pending manual platform pass.
+
+[**Open MTF Stochastics PRO v1 →**](projects/MTF-Stochastics-PRO-v1/README.md)
+
 ## Engineering focus
 
 - Pine Script v6
 - `request.security()` / multi-timeframe architecture
 - confirmed-bar and no-lookahead semantics
 - non-repainting HTF request patterns
-- oscillator and divergence logic
+- divergence and oscillator logic
 - alerts and webhook-ready JSON payloads
 - defensive input validation
 - Python reference implementations
@@ -42,9 +66,9 @@ Adaptive multi-timeframe MACD divergence indicator featuring:
 
 | Project | Status |
 |---|---|
-| MTF MACD Divergence PRO v1.1 | **Available** |
-| MTF Stochastics PRO | Next |
-| Strategy / backtest portfolio examples | Planned |
+| MTF MACD Divergence PRO v1.1 | **Available / runtime passed** |
+| MTF Stochastics PRO v1 | **Available / runtime test pending** |
+| Strategy / backtest portfolio example | Planned |
 
 ## About this repository
 
