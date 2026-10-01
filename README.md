@@ -45,7 +45,7 @@ Adaptive multi-timeframe Stochastic oscillator featuring:
 
 **Source package:** complete.  
 **Automated validation:** complete.  
-**TradingView runtime:** pending manual platform pass.
+**TradingView runtime:** passed on BTCUSDT 1H in Auto MTF mode.
 
 [**Open MTF Stochastics PRO v1 →**](projects/MTF-Stochastics-PRO-v1/README.md)
 
@@ -67,7 +67,7 @@ Adaptive multi-timeframe Stochastic oscillator featuring:
 | Project | Status |
 |---|---|
 | MTF MACD Divergence PRO v1.1 | **Available / runtime passed** |
-| MTF Stochastics PRO v1 | **Available / runtime test pending** |
+| MTF Stochastics PRO v1 | **Available / runtime passed** |
 | Strategy / backtest portfolio example | Planned |
 
 ## About this repository
