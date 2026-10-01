@@ -2,8 +2,6 @@
 
 Portfolio-grade **Pine Script v6** indicator for adaptive multi-timeframe MACD divergence detection.
 
-![TradingView runtime](assets/runtime_evidence/04_v1_1_auto_mtf_xagusd_4h.png)
-
 ## What it demonstrates
 
 - Pine Script v6
@@ -62,5 +60,7 @@ Automated tests cover divergence classification, pivot confirmation delay, timef
 ## Validation boundary
 
 Runtime compatibility has been verified. A formal realtime observation across an HTF close and alert-delivery verification remain separate checks; this repository does not overstate them as completed.
+
+TradingView screenshots are being kept as portfolio evidence and will be added to the public repository as the visual evidence pack is finalized.
 
 This project is an engineering demonstration, not a profitability claim or financial advice.
